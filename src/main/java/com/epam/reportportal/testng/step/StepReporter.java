@@ -144,7 +144,7 @@ public class StepReporter {
 	}
 
 	public void sendStep(final String name) {
-		sendStep(ItemStatus.PASSED.name(), name);
+		ReportPortal.emitLog(name, "INFO", Calendar.getInstance().getTime());
 	}
 	@Deprecated
 	public void sendStep(final String status, final String name) {
