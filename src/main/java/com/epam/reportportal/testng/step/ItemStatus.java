@@ -24,10 +24,10 @@ public enum ItemStatus {
 	RESETED("RESETED", true),
 	CANCELLED("CANCELLED", true),
 
-	INFORMATION("INFO", true),
-	INFO("INFO", true),
-	WARN("WARN", true),
-	WARNING("WARN", true);
+	INFORMATION("INFO", false),
+	INFO("INFO", false),
+	WARN("WARN", false),
+	WARNING("WARN", false);
 
 	private final String value;
 	private final boolean item;
