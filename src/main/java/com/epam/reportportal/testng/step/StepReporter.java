@@ -39,6 +39,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static java.util.Optional.ofNullable;
 import static rp.com.google.common.base.Throwables.getStackTraceAsString;
@@ -51,6 +52,8 @@ public class StepReporter {
 	private static final Logger LOGGER = LoggerFactory.getLogger(StepReporter.class);
 
 	private static StepReporter instance;
+
+	private final Set<ItemStatus> logStatuses;
 
 	private Launch launch;
 
@@ -75,6 +78,7 @@ public class StepReporter {
 			}
 		};
 		parentFailures = ThreadLocal.withInitial(Sets::newHashSet);
+		logStatuses = Arrays.stream(ItemStatus.values()).filter(itemStatus -> !itemStatus.isItem()).collect(Collectors.toSet());
 	}
 
 	private static class StepEntry {
@@ -92,7 +96,9 @@ public class StepReporter {
 			return itemId;
 		}
 
-		public Date getTimestamp(){ return timestamp; }
+		public Date getTimestamp() {
+			return timestamp;
+		}
 
 		public FinishTestItemRQ getFinishTestItemRQ() {
 			return finishTestItemRQ;
@@ -134,21 +140,19 @@ public class StepReporter {
 		return false;
 	}
 
-	private void sendStep(final String status, final String name, final Runnable actions) {
-		StartTestItemRQ rq = buildStartStepRequest(name);
-		Maybe<String> stepId = startStepRequest(rq);
-		if (actions != null) {
-			actions.run();
-		}
-		finishStepRequest(stepId, status, rq.getStartTime());
-	}
-
 	public void sendStep(final String name) {
 		ReportPortal.emitLog(name, "INFO", Calendar.getInstance().getTime());
 	}
+
 	@Deprecated
 	public void sendStep(final String status, final String name) {
-		sendStep(status, name, ()->{});
+		Optional<ItemStatus> logStatus = logStatuses.stream().filter(ls -> ls.getValue().equalsIgnoreCase(status)).findFirst();
+		if (logStatus.isPresent()) {
+			ReportPortal.emitLog(name, logStatus.get().getValue(), Calendar.getInstance().getTime());
+		} else {
+			sendStep(status, name, () -> {
+			});
+		}
 	}
 
 	public void sendStep(@NotNull final ItemStatus status, final String name) {
@@ -157,7 +161,18 @@ public class StepReporter {
 
 	@Deprecated
 	public void sendStep(final String status, final String name, final Throwable throwable) {
-		sendStep(status, name, ()->ReportPortal.emitLog((Function<String, SaveLogRQ>) itemId -> buildSaveLogRequest(itemId, "ERROR", throwable)));
+		Optional<ItemStatus> logStatus = logStatuses.stream().filter(ls -> ls.getValue().equalsIgnoreCase(status)).findFirst();
+		if (logStatus.isPresent()) {
+			ReportPortal.emitLog((Function<String, SaveLogRQ>) itemId -> buildSaveLogRequest(itemId,
+					logStatus.get().getValue(),
+					throwable
+			));
+		} else {
+			sendStep(status,
+					name,
+					() -> ReportPortal.emitLog((Function<String, SaveLogRQ>) itemId -> buildSaveLogRequest(itemId, "ERROR", throwable))
+			);
+		}
 	}
 
 	public void sendStep(final @NotNull ItemStatus status, final String name, final Throwable throwable) {
@@ -170,11 +185,33 @@ public class StepReporter {
 
 	@Deprecated
 	public void sendStep(final String status, final String name, final File... files) {
-		sendStep(status, name, ()->{
-			for (final File file : files) {
-				ReportPortal.emitLog((Function<String, SaveLogRQ>) itemId -> buildSaveLogRequest(itemId, file.getName(), "INFO", file));
+		Optional<ItemStatus> logStatus = logStatuses.stream().filter(ls -> ls.getValue().equalsIgnoreCase(status)).findFirst();
+		if (logStatus.isPresent()) {
+			if (files.length > 0) {
+				ReportPortal.emitLog((Function<String, SaveLogRQ>) itemId -> buildSaveLogRequest(itemId,
+						name,
+						logStatus.get().getValue(),
+						files[0]
+				));
+				Arrays.stream(files)
+						.skip(1)
+						.forEach(file -> ReportPortal.emitLog((Function<String, SaveLogRQ>) itemId -> buildSaveLogRequest(itemId,
+								file.getName(),
+								logStatus.get().getValue(),
+								file
+						)));
+			} else {
+				ReportPortal.emitLog(name, logStatus.get().getValue(), Calendar.getInstance().getTime());
 			}
-		});
+
+		} else {
+			sendStep(status, name, () -> {
+				for (final File file : files) {
+					ReportPortal.emitLog((Function<String, SaveLogRQ>) itemId -> buildSaveLogRequest(itemId, file.getName(), "INFO", file));
+				}
+			});
+		}
+
 	}
 
 	public void sendStep(final @NotNull ItemStatus status, final String name, final File... files) {
@@ -183,11 +220,35 @@ public class StepReporter {
 
 	@Deprecated
 	public void sendStep(final String status, String name, final Throwable throwable, @NotNull final File... files) {
-		sendStep(status, name, ()->{
-			for (final File file : files) {
-				ReportPortal.emitLog((Function<String, SaveLogRQ>) itemId -> buildSaveLogRequest(itemId, "ERROR", throwable, file));
+		Optional<ItemStatus> logStatus = logStatuses.stream().filter(ls -> ls.getValue().equalsIgnoreCase(status)).findFirst();
+		if (logStatus.isPresent()) {
+			if (files.length > 0) {
+				ReportPortal.emitLog((Function<String, SaveLogRQ>) itemId -> buildSaveLogRequest(itemId,
+						logStatus.get().getValue(),
+						throwable,
+						files[0]
+				));
+				Arrays.stream(files)
+						.skip(1)
+						.forEach(file -> ReportPortal.emitLog((Function<String, SaveLogRQ>) itemId -> buildSaveLogRequest(itemId,
+								file.getName(),
+								logStatus.get().getValue(),
+								file
+						)));
+			} else {
+				ReportPortal.emitLog((Function<String, SaveLogRQ>) itemId -> buildSaveLogRequest(itemId,
+						logStatus.get().getValue(),
+						throwable
+				));
 			}
-		});
+
+		} else {
+			sendStep(status, name, () -> {
+				for (final File file : files) {
+					ReportPortal.emitLog((Function<String, SaveLogRQ>) itemId -> buildSaveLogRequest(itemId, "ERROR", throwable, file));
+				}
+			});
+		}
 	}
 
 	public void sendStep(final @NotNull ItemStatus status, final String name, final Throwable throwable, final File... files) {
@@ -196,18 +257,25 @@ public class StepReporter {
 
 	public Optional<StepEntry> finishPreviousStep() {
 		return ofNullable(steps.get().poll()).map(stepEntry -> {
-			launch.finishTestItem(stepEntry.getItemId(),
-					stepEntry.getFinishTestItemRQ()
-			);
+			launch.finishTestItem(stepEntry.getItemId(), stepEntry.getFinishTestItemRQ());
 			return stepEntry;
 		});
 	}
 
+	private void sendStep(final String status, final String name, final Runnable actions) {
+		StartTestItemRQ rq = buildStartStepRequest(name);
+		Maybe<String> stepId = startStepRequest(rq);
+		if (actions != null) {
+			actions.run();
+		}
+		finishStepRequest(stepId, status, rq.getStartTime());
+	}
+
 	private Maybe<String> startStepRequest(final StartTestItemRQ startTestItemRQ) {
-		finishPreviousStep().ifPresent(e->{
+		finishPreviousStep().ifPresent(e -> {
 			Date previousDate = e.getTimestamp();
 			Date currentDate = startTestItemRQ.getStartTime();
-			if(!previousDate.before(currentDate)) {
+			if (!previousDate.before(currentDate)) {
 				startTestItemRQ.setStartTime(new Date(previousDate.getTime() + 1));
 			}
 		});

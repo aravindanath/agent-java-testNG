@@ -17,10 +17,31 @@
 package com.epam.reportportal.testng.step;
 
 public enum ItemStatus {
-	PASSED,
-	FAILED,
-	STOPPED,
-	SKIPPED,
-	RESETED,
-	CANCELLED
+	PASSED("PASSED", true),
+	FAILED("FAILED", true),
+	STOPPED("STOPPED", true),
+	SKIPPED("SKIPPED", true),
+	RESETED("RESETED", true),
+	CANCELLED("CANCELLED", true),
+
+	INFORMATION("INFO", true),
+	INFO("INFO", true),
+	WARN("WARN", true),
+	WARNING("WARN", true);
+
+	private final String value;
+	private final boolean item;
+
+	ItemStatus(String value, boolean item) {
+		this.value = value;
+		this.item = item;
+	}
+
+	public String getValue() {
+		return value;
+	}
+
+	public boolean isItem() {
+		return item;
+	}
 }
