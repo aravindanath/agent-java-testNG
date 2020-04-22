@@ -146,7 +146,7 @@ public class StepReporter {
 
 	@Deprecated
 	public void sendStep(final String status, final String name) {
-		Optional<ItemStatus> logStatus = logStatuses.stream().filter(ls -> ls.getValue().equalsIgnoreCase(status)).findFirst();
+		Optional<ItemStatus> logStatus = logStatuses.stream().filter(ls -> ls.name().equalsIgnoreCase(status)).findFirst();
 		if (logStatus.isPresent()) {
 			ReportPortal.emitLog(name, logStatus.get().getValue(), Calendar.getInstance().getTime());
 		} else {
@@ -161,7 +161,7 @@ public class StepReporter {
 
 	@Deprecated
 	public void sendStep(final String status, final String name, final Throwable throwable) {
-		Optional<ItemStatus> logStatus = logStatuses.stream().filter(ls -> ls.getValue().equalsIgnoreCase(status)).findFirst();
+		Optional<ItemStatus> logStatus = logStatuses.stream().filter(ls -> ls.name().equalsIgnoreCase(status)).findFirst();
 		if (logStatus.isPresent()) {
 			ReportPortal.emitLog((Function<String, SaveLogRQ>) itemId -> buildSaveLogRequest(itemId,
 					logStatus.get().getValue(),
@@ -185,7 +185,7 @@ public class StepReporter {
 
 	@Deprecated
 	public void sendStep(final String status, final String name, final File... files) {
-		Optional<ItemStatus> logStatus = logStatuses.stream().filter(ls -> ls.getValue().equalsIgnoreCase(status)).findFirst();
+		Optional<ItemStatus> logStatus = logStatuses.stream().filter(ls -> ls.name().equalsIgnoreCase(status)).findFirst();
 		if (logStatus.isPresent()) {
 			if (files.length > 0) {
 				ReportPortal.emitLog((Function<String, SaveLogRQ>) itemId -> buildSaveLogRequest(itemId,
@@ -220,7 +220,7 @@ public class StepReporter {
 
 	@Deprecated
 	public void sendStep(final String status, String name, final Throwable throwable, @NotNull final File... files) {
-		Optional<ItemStatus> logStatus = logStatuses.stream().filter(ls -> ls.getValue().equalsIgnoreCase(status)).findFirst();
+		Optional<ItemStatus> logStatus = logStatuses.stream().filter(ls -> ls.name().equalsIgnoreCase(status)).findFirst();
 		if (logStatus.isPresent()) {
 			if (files.length > 0) {
 				ReportPortal.emitLog((Function<String, SaveLogRQ>) itemId -> buildSaveLogRequest(itemId,
