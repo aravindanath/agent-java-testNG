@@ -82,7 +82,7 @@ public class TestNGService implements ITestNGService {
 
 	public static final String SKIPPED_ISSUE_KEY = "skippedIssue";
 	public static final String RP_ID = "rp_id";
-	public static final String RP_RETRY = "rp_retry";
+	public static final String RP_RETRY_SET = "rp_retry_set";
 	public static final String RP_METHOD_TYPE = "rp_method_type";
 	public static final String ARGUMENT = "arg";
 	public static final String NULL_VALUE = "NULL";
@@ -222,8 +222,11 @@ public class TestNGService implements ITestNGService {
 				.remove(createKey(testContext)));
 	}
 
-	private boolean getRetry(ITestResult testResult) {
+	private boolean isRetry(ITestResult testResult) {
 		if (testResult.wasRetried()) {
+			return true;
+		}
+		if(testResult.getMethod().getInvocationCount() > 1) {
 			return true;
 		}
 		Object instance = testResult.getInstance();
@@ -247,8 +250,7 @@ public class TestNGService implements ITestNGService {
 		rq.setDescription(testResult.getMethod().getDescription());
 		rq.setStartTime(new Date(testResult.getStartMillis()));
 		rq.setType(type == null ? null : type.toString());
-		boolean retry = getRetry(testResult);
-		if (retry) {
+		if (isRetry(testResult)) {
 			rq.setRetry(Boolean.TRUE);
 		}
 		return rq;
@@ -260,7 +262,7 @@ public class TestNGService implements ITestNGService {
 		testResult.setAttribute(RP_METHOD_TYPE, type);
 		StartTestItemRQ rq = buildStartConfigurationRq(testResult, type);
 		if (Boolean.TRUE == rq.isRetry()) {
-			testResult.setAttribute(RP_RETRY, Boolean.TRUE);
+			testResult.setAttribute(RP_RETRY_SET, Boolean.TRUE);
 		}
 		Maybe<String> parentId = getConfigParent(testResult, type);
 		Maybe<String> itemID = launch.get().startTestItem(parentId, rq);
@@ -303,8 +305,7 @@ public class TestNGService implements ITestNGService {
 		rq.setUniqueId(extractUniqueID(testResult));
 		rq.setStartTime(new Date(testResult.getStartMillis()));
 		rq.setType(type.toString());
-		boolean retry = getRetry(testResult);
-		if (retry) {
+		if (isRetry(testResult)) {
 			rq.setRetry(Boolean.TRUE);
 		}
 		return rq;
@@ -327,7 +328,7 @@ public class TestNGService implements ITestNGService {
 		testResult.setAttribute(RP_METHOD_TYPE, methodType);
 		StartTestItemRQ rq = buildStartStepRq(testResult, methodType);
 		if (Boolean.TRUE == rq.isRetry()) {
-			testResult.setAttribute(RP_RETRY, Boolean.TRUE);
+			testResult.setAttribute(RP_RETRY_SET, Boolean.TRUE);
 		}
 
 		Maybe<String> stepMaybe = launch.get().startTestItem(getAttribute(testResult.getTestContext(), RP_ID), rq);
@@ -381,18 +382,22 @@ public class TestNGService implements ITestNGService {
 	}
 
 	private void processFinishRetryFlag(ITestResult testResult, FinishTestItemRQ rq) {
-		boolean isRetried = testResult.wasRetried();
+		boolean isRetried = testResult.wasRetried()
+				|| ofNullable(testResult.getMethod()).map(ITestNGMethod::getInvocationCount).orElse(1) > 1;
 		TestMethodType type = getAttribute(testResult, RP_METHOD_TYPE);
 
 		Object instance = testResult.getInstance();
-		if (TestMethodType.STEP == type && getAttribute(testResult, RP_RETRY) == null && isRetried) {
+		if (TestMethodType.STEP == type && isRetried) {
 			RETRY_STATUS_TRACKER.put(instance, Boolean.TRUE);
-			rq.setRetry(Boolean.TRUE);
+			// set retry flag only if wasn't set on start item method
+			if(getAttribute(testResult, RP_RETRY_SET) == null) {
+				rq.setRetry(Boolean.TRUE);
+			}
 		}
 
 		// Save before method finish requests to update them with a retry flag in case of main test method failed
 		if (instance != null) {
-			if (TestMethodType.BEFORE_METHOD == type && getAttribute(testResult, RP_RETRY) == null) {
+			if (TestMethodType.BEFORE_METHOD == type && getAttribute(testResult, RP_RETRY_SET) == null) {
 				Maybe<String> itemId = getAttribute(testResult, RP_ID);
 				BEFORE_METHOD_TRACKER.computeIfAbsent(instance, i -> new ConcurrentLinkedQueue<>()).add(Pair.of(itemId, rq));
 			} else {
@@ -432,7 +437,7 @@ public class TestNGService implements ITestNGService {
 				SKIPPED_STATUS_TRACKER.put(instance, Boolean.TRUE);
 			}
 			if (ItemStatus.SKIPPED == status && (SKIPPED_STATUS_TRACKER.containsKey(instance) || (TestMethodType.BEFORE_METHOD == type
-					&& getAttribute(testResult, RP_RETRY) != null))) {
+					&& getAttribute(testResult, RP_RETRY_SET) != null))) {
 				rq.setIssue(NOT_ISSUE);
 			}
 		}
